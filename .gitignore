@@ -1,1 +1,12 @@
 CLAUDE.md
+*.o
+*.ko
+*.ko.debug
+*.ko.full
+*.kld
+export_syms
+machine
+x86
+i386
+.depend*
+opt_*.h

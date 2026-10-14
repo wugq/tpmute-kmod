@@ -35,13 +35,54 @@ Each step can be checked on its own before the next one starts.
 
 ## 4. Decide and integrate
 
-Only if the gain is real:
-- xfce4-bsdthinkpad-plugin (`bsdthinkpad.c`): read `/var/run/devd.pipe`
-  (or devd.seqpacket.pipe from C) for the speaker mute; fall back to
-  polling when tpmute is not loaded.
+Only if the gain is real.
+
+### The interface between the two projects
+
+The devd event is the only contract between tpmute-kmod and
+xfce4-bsdthinkpad-plugin. Fix it in README.md before the plugin uses it, and
+do not change it afterwards without changing both:
+
+```
+!system=ACPI subsystem=IBM type=MUTE state=0|1
+```
+
+plus a way to tell the module is loaded: the sysctl node `hw.tpmute`
+(e.g. `hw.tpmute.state`, `hw.tpmute.interval_ms`). If the format ever has
+to change, add a version sysctl (`hw.tpmute.version`) and let the plugin
+check it.
+
+### What the user does
+
+1. `pkg install tpmute-kmod` (or build its port).
+2. `kldload tpmute` now; `sysrc -f /boot/loader.conf tpmute_load=YES` for
+   every boot.
+
+Nothing to set in bsdthinkpad, no restart: it notices the module itself.
+Without the module everything works as today.
+
+### What bsdthinkpad does (changes in `bsdthinkpad.c`)
+
+- Detect: at start, and again every few seconds while not connected, check
+  whether `hw.tpmute` exists (`sysctlbyname`).
+- Module loaded: connect to `/var/run/devd.seqpacket.pipe` (SOCK_SEQPACKET,
+  one event per read), watch it from the GLib main loop
+  (`g_unix_fd_add`); on `system=ACPI subsystem=IBM type=MUTE`, read
+  `dev.acpi_ibm.0.mute` and do what a poll does today on a change (mute LED,
+  PulseAudio sink sync). Stop the 200 ms poll of the speaker mute; keep a
+  slow safety poll (~2 s) so a lost event is caught.
+- Module not loaded, unloaded later, or the devd socket closes (devd
+  restarted): back to the 200 ms poll, and try to reconnect.
 - Brightness and microphone could move to events too (its BACKLOG,
-  "Fewer wake-ups"), leaving a slow fallback poll.
-- Packaging: a kmod port of its own (`tpmute_load="YES"` in loader.conf).
+  "Fewer wake-ups"): the mic-mute key already has a devd notify (0x1b),
+  brightness could be signalled by `bsdthinkpad brightness`; a slow poll
+  stays for changes made by other tools.
+- Its README gets a short "Optional: tpmute-kmod" section pointing here.
+
+### Packaging
+
+A kmod port of its own, like `sysutils/acpi_call` or
+`graphics/drm-612-kmod`; after a kernel update only this package is rebuilt.
 
 ## Notes from earlier work
 
