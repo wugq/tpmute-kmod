@@ -42,7 +42,12 @@
 #define	TPMUTE_LED_OUT		(1u << 22)	/* output value, low = lit */
 #define	TPMUTE_LED_OE		(1u << 23)	/* output enable */
 
+/*
+ * MTX_SYSINIT: the sysctl handlers lock it, and the linker removes the
+ * sysctls only after MOD_UNLOAD, so it must outlive tpmute_unload().
+ */
 static struct mtx	tpmute_mtx;
+MTX_SYSINIT(tpmute, &tpmute_mtx, "tpmute", MTX_DEF);
 static struct proc	*tpmute_proc;
 static bool		tpmute_stop;
 static int		tpmute_interval_ms = 200;
@@ -64,7 +69,11 @@ tpmute_sysctl_interval(SYSCTL_HANDLER_ARGS)
 		return (error);
 	if (val < TPMUTE_INTERVAL_MIN || val > TPMUTE_INTERVAL_MAX)
 		return (EINVAL);
+	/* Wake the thread so that the new interval applies now. */
+	mtx_lock(&tpmute_mtx);
 	tpmute_interval_ms = val;
+	wakeup(&tpmute_stop);
+	mtx_unlock(&tpmute_mtx);
 	return (0);
 }
 
@@ -218,13 +227,10 @@ tpmute_load(void)
 	TUNABLE_INT_FETCH("hw.tpmute.led", &tpmute_led);
 	tpmute_led_attach();
 	tpmute_stop = false;
-	mtx_init(&tpmute_mtx, "tpmute", NULL, MTX_DEF);
 	error = kproc_create(tpmute_thread, NULL, &tpmute_proc, 0, 0,
 	    "tpmute");
-	if (error != 0) {
-		mtx_destroy(&tpmute_mtx);
+	if (error != 0)
 		tpmute_led_detach();
-	}
 	return (error);
 }
 
@@ -240,7 +246,6 @@ tpmute_unload(void)
 	msleep(tpmute_proc, &tpmute_mtx, PWAIT, "tpmexit", 0);
 	tpmute_proc = NULL;
 	mtx_unlock(&tpmute_mtx);
-	mtx_destroy(&tpmute_mtx);
 	tpmute_led_detach();
 }
 
