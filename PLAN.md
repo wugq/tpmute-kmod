@@ -33,6 +33,24 @@ Each step can be checked on its own before the next one starts.
   with the right state; also when set by `sysctl dev.acpi_ibm.0.mute=1`.
 - Cost: the thread's CPU time over a few minutes.
 
+## Results (2026-10-14)
+
+- Step 1: the mute sysctl is `CTLFLAG_MPSAFE` (no Giant), serialised by an
+  sx lock (`ACPI_SERIAL_*`), so a kernel thread can read it through
+  `kernel_sysctl()`. Chosen: sysctl read. `acpi_ibm` has no
+  `MODULE_VERSION`, so no `MODULE_DEPEND`.
+- Step 2: `tpmute.c`, ~270 lines, `-Wall -Werror` clean.
+- Step 3: one event per change, right state, on both machines; load,
+  unload, reload clean; load without `acpi_ibm` fails with ENXIO;
+  `acpi_ibm` unloaded and reloaded under tpmute keeps working.
+  Bug found and fixed: after a failed `MOD_LOAD` the linker sends
+  `MOD_UNLOAD`, which slept forever waiting for a thread that never
+  started (hung the A475's kldload; needed a reboot).
+- Cost on the X1 Carbon: 0.036 s system time in 180 s (~0.02% of a CPU) at
+  200 ms, against ~0.15% for bsdthinkpad 0.3.1's poll.
+- Still to do: press the physical mute key (only sysctl writes tested);
+  boot with `tpmute_load="YES"`.
+
 ## 4. Decide and integrate
 
 Only if the gain is real.

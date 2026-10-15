@@ -4,7 +4,8 @@ An experimental FreeBSD kernel module that turns the ThinkPad embedded
 controller's speaker mute into a devd event, so that user programs can wait
 for it instead of polling.
 
-Status: **planning, no code yet.** See `PLAN.md` for the steps.
+Status: **experimental.** The module works (tested on FreeBSD 15.1, A475 and
+X1 Carbon 3rd gen); see `PLAN.md` for the steps and results.
 
 A separate project on purpose: a kernel module has to be rebuilt whenever the
 kernel changes, and keeping it apart means only this module needs that, not
@@ -45,7 +46,7 @@ wake when something happens.
   `acpi_UserNotify("IBM", handle, code)` (codes 0x15-0x17 are volume up,
   volume down, mute; the firmware of both test machines never raises them).
 
-## Design (first idea, to be checked)
+## Design
 
 - A kernel thread (`kproc`/`kthread`) that loops: read the mute, compare
   with the last value, `pause()` for 200 ms. A thread rather than a
@@ -56,10 +57,26 @@ wake when something happens.
   `ACPI_EC_READ` directly, as `acpi_ibm` does; more code, more coupling.)
 - On a change, `devctl_notify("ACPI", "IBM", "MUTE", "state=0|1")`, which
   devd shows as `!system=ACPI subsystem=IBM type=MUTE state=1`.
-- Module depends on `acpi_ibm` (`MODULE_DEPEND`); does nothing and refuses
-  to load without `dev.acpi_ibm.0.mute`.
+- No `MODULE_DEPEND` on `acpi_ibm`: it has no `MODULE_VERSION`, so the
+  dependency could never be satisfied. Instead the module refuses to load
+  without `dev.acpi_ibm.0.mute`, except at boot (loader.conf), when
+  `acpi_ibm` has not attached yet; the thread retries. If `acpi_ibm` is
+  unloaded and loaded again, the OID is looked up again.
 - A sysctl for the interval (`hw.tpmute.interval_ms`, default 200) and one
   to read the last state, for testing.
+- On the ThinkPad A475 only, it also sets the speaker mute LED from the
+  EC's mute on every poll (`hw.tpmute.led`: 1 on, 0 off, -1 not this
+  model; also a loader tunable). The firmware sets that LED only from its
+  own copy of the mute (`AUDC`, behind `SSMS`/`GSMS`), which lags the EC by
+  130 to 180 ms. The LED is AMD FCH GPIO 143 (DSDT `\_SB.PCI0.SMB.G143`):
+  bit 22 of the register at `0xFED81500 + 0x23C`, low lights it. The module
+  maps that register only when `smbios.system.version` is "ThinkPad A475"
+  and writes only that bit, only while the pin is an output (bit 23).
+- Keep the interval at 200 ms: every read is an EC transaction, and while
+  the key is pressed quickly reads collide with the EC's own work
+  (`acpi_ec0: EcCommand: no response to 0x84`, presses lost). Measured on
+  the A475: none with nothing reading, a few at 200 ms, many when the
+  watcher read every 30 ms as well (so it now reads `hw.tpmute.state`).
 
 ## Build
 
