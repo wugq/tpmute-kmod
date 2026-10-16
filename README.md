@@ -97,8 +97,8 @@ kernel sources (`/usr/src`). As root:
 ```
 git clone https://github.com/wugq/tpmute-kmod
 cd tpmute-kmod/port/sysutils/tpmute-kmod
-make package                    # work/pkg/tpmute-kmod-0.1.0.pkg
-pkg install work/pkg/tpmute-kmod-0.1.0.pkg
+make package        # work/pkg/tpmute-kmod-0.1.0.<FreeBSD version>.pkg
+pkg install work/pkg/tpmute-kmod-*.pkg
 make clean
 ```
 The package installs `/boot/modules/tpmute.ko`, built for the kernel in
