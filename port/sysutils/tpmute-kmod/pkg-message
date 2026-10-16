@@ -1,0 +1,17 @@
+[
+{ type: install
+  message: <<EOM
+tpmute needs acpi_ibm. Load it now with
+
+    kldload acpi_ibm tpmute
+
+and at boot with these lines in /boot/loader.conf:
+
+    acpi_ibm_load="YES"
+    tpmute_load="YES"
+
+The module is built for the running FreeBSD version; rebuild the package
+after a FreeBSD upgrade (e.g. 15.1 to 15.2).
+EOM
+}
+]

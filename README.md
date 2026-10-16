@@ -88,8 +88,21 @@ make            # bsd.kmod.mk: KMOD=tpmute SRCS=tpmute.c
 kldload ./tpmute.ko
 ```
 
-Packaging: a kmod port of its own, like `graphics/drm-612-kmod` or
-`sysutils/acpi_call`.
+### As a package (port)
+
+The port is in `port/sysutils/tpmute-kmod`; it fetches the release (tag
+`v0.1.0`) from GitHub. It is not in the FreeBSD ports tree; a port directory
+works from anywhere, given the ports framework (`/usr/ports/Mk`) and the
+kernel sources (`/usr/src`). As root:
+```
+git clone https://github.com/wugq/tpmute-kmod
+cd tpmute-kmod/port/sysutils/tpmute-kmod
+make package                    # work/pkg/tpmute-kmod-0.1.0.pkg
+pkg install work/pkg/tpmute-kmod-0.1.0.pkg
+make clean
+```
+The package installs `/boot/modules/tpmute.ko`, built for the kernel in
+`/usr/src`; rebuild it after a FreeBSD upgrade.
 
 ## Test
 

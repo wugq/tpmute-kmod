@@ -1,0 +1,9 @@
+tpmute turns the ThinkPad embedded controller's speaker mute into a devd
+event, so that user programs can wait for it instead of polling
+dev.acpi_ibm.0.mute:
+
+    !system=ACPI subsystem=IBM type=MUTE state=0|1
+
+A kernel thread polls the mute (hw.tpmute.interval_ms) and calls
+devctl_notify() on a change. On the ThinkPad A475 it also sets the speaker
+mute LED from the EC's mute (hw.tpmute.led).
